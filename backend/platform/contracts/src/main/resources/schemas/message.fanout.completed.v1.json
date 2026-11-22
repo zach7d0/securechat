@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:securechat:message.fanout.completed.v1.json",
+  "type": "object",
+  "required": [
+    "messageId",
+    "conversationId",
+    "expectedDevices",
+    "deviceIds",
+    "completedAt"
+  ],
+  "properties": {
+    "messageId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "conversationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "expectedDevices": {
+      "type": "integer"
+    },
+    "deviceIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "completedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "skippedDevices": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "required": [
+          "deviceId",
+          "reason"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

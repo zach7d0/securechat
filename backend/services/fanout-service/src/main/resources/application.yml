@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: fanout-service
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: 6379
+      username: ${REDIS_USER:fanout}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+  kafka:
+    consumer:
+      group-id: fanout-service
+      max-poll-records: 50
+    listener:
+      concurrency: 3
+server:
+  port: 8086
+securechat:
+  security:
+    public-paths:
+      - /v3/api-docs/**
+  fanout:
+    membership-cache-ttl: 60s
+    device-cache-ttl: 30s
+    done-marker-ttl: 24h

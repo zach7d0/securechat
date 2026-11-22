@@ -1,0 +1,22 @@
+diff --git a/node_modules/ts-mls/dist/src/clientState.js b/node_modules/ts-mls/dist/src/clientState.js
+index 45af97f..c4fc138 100644
+--- a/node_modules/ts-mls/dist/src/clientState.js
++++ b/node_modules/ts-mls/dist/src/clientState.js
+@@ -280,12 +280,16 @@ export async function validateRatchetTree(tree, groupContext, config, authServic
+                 const nodeIndex = leafToNodeIndex(leafIndex);
+                 if (tree[nodeIndex]?.nodeType !== "leaf" && !dp.includes(toNodeIndex(i)))
+                     return new ValidationError("Unmerged leaf did not represent a non-blank descendant leaf node");
++                // RFC 9420 7.9.2: every non-blank node between the unmerged leaf and this node must LIST the leaf
++                // (SecureChat patch, as fixed upstream in ts-mls 2.0: was an equality check over all ancestors)
+                 for (const parentIdx of dp) {
++                    if (parentIdx === toNodeIndex(i))
++                        break;
+                     const dpNode = tree[parentIdx];
+                     if (dpNode !== undefined) {
+                         if (dpNode.nodeType !== "parent")
+                             return new InternalError("Expected parent node");
+-                        if (!arraysEqual(dpNode.parent.unmergedLeaves, n.parent.unmergedLeaves))
++                        if (!dpNode.parent.unmergedLeaves.includes(unmergedLeaf))
+                             return new ValidationError("non-blank intermediate node must list leaf node in its unmerged_leaves");
+                     }
+                 }

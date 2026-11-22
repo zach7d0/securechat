@@ -1,0 +1,14 @@
+SecureChat
+Copyright 2026 SecureChat contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product includes third-party open-source software, each under its own license, including:
+  - libsignal-protocol-typescript (Signal Protocol port) — see frontend/package.json
+  - ts-mls (Messaging Layer Security, RFC 9420), with a local patch in
+    frontend/patches/ts-mls+1.6.4.patch (same fix as upstream ts-mls 2.0)
+  - @hpke/core, @noble/curves, @noble/hashes, @noble/ciphers
+  - Spring Boot, Spring Cloud Gateway and other dependencies declared in backend/**/pom.xml
+  - React, React Router, Zustand, Tailwind CSS, lucide-react, Vite and other dependencies
+    declared in frontend/package.json and admin-portal/package.json
+Their license texts are distributed with those packages (node_modules / Maven artifacts).

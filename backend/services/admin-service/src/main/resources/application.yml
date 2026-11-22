@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: admin-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/admin_db}
+    username: ${DB_USER:admin_svc}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 8
+      connection-timeout: 3000
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+server:
+  port: 8092
+securechat:
+  security:
+    mode: admin               # this service has its own admin trust domain (AdminSecurityConfig)
+  admin:
+    private-key-file: ${ADMIN_JWT_PRIVATE_KEY_FILE:/run/secrets/admin_jwt_key}
+    token-ttl: 15m
+    issuer: securechat-admin
+    audience: securechat-admin
+    mfa-required: ${ADMIN_MFA_REQUIRED:true}
+    mfa-encryption-key: ${ADMIN_MFA_ENCRYPTION_KEY:}
+    bootstrap-username: ${ADMIN_BOOTSTRAP_USERNAME:}
+    bootstrap-password: ${ADMIN_BOOTSTRAP_PASSWORD:}
+    max-failed-logins: 5
+    lockout: 15m
+    prometheus-url: ${PROMETHEUS_URL:http://prometheus:9090}
+    prometheus-user: ${PROMETHEUS_USER:}
+    prometheus-password: ${PROMETHEUS_PASSWORD:}
+    health-targets: api-gateway:9080,auth-service:9081,user-service:9082,key-service:9083,conversation-service:9084,message-service:9085,fanout-service:9086,delivery-service:9087,presence-service:9088,websocket-gateway:9089,websocket-gateway-2:9089,notification-service:9090,monitoring-service:9091,admin-service:9092

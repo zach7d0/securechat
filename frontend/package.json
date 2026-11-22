@@ -1,0 +1,41 @@
+{
+  "name": "securechat-chat",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "postinstall": "patch-package"
+  },
+  "dependencies": {
+    "@hpke/core": "1.9.0",
+    "@noble/ciphers": "2.1.1",
+    "@noble/curves": "2.0.1",
+    "@noble/hashes": "2.0.1",
+    "@privacyresearch/libsignal-protocol-typescript": "0.0.16",
+    "idb": "8.0.4",
+    "lucide-react": "0.577.0",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
+    "react-router": "7.18.5",
+    "ts-mls": "1.6.4",
+    "zustand": "5.0.16"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "fake-indexeddb": "6.2.7",
+    "patch-package": "8.0.0",
+    "tailwindcss": "4.3.4",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3",
+    "vite": "7.3.7",
+    "vitest": "3.2.7"
+  }
+}

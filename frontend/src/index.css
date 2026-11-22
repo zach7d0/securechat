@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #f4f5f7;
+}
+
+.dark body { background: #0b1014; }
+
+/* Chat theme (src/lib/theme.ts sets the variables and data-pattern on <html>) */
+:root {
+  --chat-wall: #efeae2;
+  --chat-pattern: rgba(0, 0, 0, 0.05);
+  --bubble-out: #d1fae5;
+  --bubble-out-text: #0f172a;
+  --accent: #059669;
+  --accent-hover: #047857;
+  --accent-text: #047857;
+}
+
+/* Pattern: from <html data-pattern> for the chat, or the element's own data-pattern (theme previews). */
+.chat-wallpaper,
+.chat-wallpaper[data-pattern="dots"] {
+  background-color: var(--chat-wall);
+  background-image: radial-gradient(var(--chat-pattern) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+html[data-pattern="grid"] .chat-wallpaper:not([data-pattern]),
+.chat-wallpaper[data-pattern="grid"] {
+  background-image: linear-gradient(var(--chat-pattern) 1px, transparent 1px), linear-gradient(90deg, var(--chat-pattern) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+html[data-pattern="diagonal"] .chat-wallpaper:not([data-pattern]),
+.chat-wallpaper[data-pattern="diagonal"] {
+  background-image: repeating-linear-gradient(45deg, var(--chat-pattern) 0 1px, transparent 1px 14px);
+  background-size: auto;
+}
+html[data-pattern="plain"] .chat-wallpaper:not([data-pattern]),
+.chat-wallpaper[data-pattern="plain"] {
+  background-image: none;
+}

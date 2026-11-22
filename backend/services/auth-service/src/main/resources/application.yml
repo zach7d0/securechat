@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/auth_db}
+    username: ${DB_USER:auth_svc}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 3000
+  kafka:
+    consumer:
+      group-id: auth-service
+server:
+  port: 8081
+securechat:
+  outbox:
+    enabled: true
+  security:
+    public-paths:
+      - /api/v1/auth/register
+      - /api/v1/auth/login
+      - /api/v1/auth/refresh
+      - /api/v1/auth/logout
+      - /.well-known/jwks.json
+      - /v3/api-docs/**
+  auth:
+    private-key-file: ${AUTH_JWT_PRIVATE_KEY_FILE:/run/secrets/auth-jwt-private.pem}
+    access-token-ttl: 5m
+    refresh-token-ttl: 30d
+    login-attempts-per-user: 10
+    login-attempts-per-ip: 50
+    login-window: 5m

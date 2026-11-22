@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:securechat:message.delivery.requested.v1.json",
+  "type": "object",
+  "required": [
+    "deliveryId",
+    "messageId",
+    "conversationId",
+    "senderUserId",
+    "senderDeviceId",
+    "recipientUserId",
+    "recipientDeviceId",
+    "protocol",
+    "messageType",
+    "ciphertext",
+    "createdAt"
+  ],
+  "properties": {
+    "deliveryId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "messageId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "conversationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "senderUserId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "senderDeviceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "recipientUserId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "recipientDeviceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "protocol": {
+      "enum": [
+        "SIGNAL",
+        "MLS"
+      ]
+    },
+    "messageType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ciphertext": {
+      "type": "string",
+      "minLength": 1
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signalType": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "epoch": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

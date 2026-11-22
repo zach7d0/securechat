@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:securechat:keys.prekeys.low.v1.json",
+  "type": "object",
+  "required": [
+    "userId",
+    "deviceId",
+    "remainingPrekeys",
+    "remainingKeyPackages"
+  ],
+  "properties": {
+    "userId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "deviceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "remainingPrekeys": {
+      "type": "integer"
+    },
+    "remainingKeyPackages": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": true
+}

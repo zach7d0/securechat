@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: presence-service
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: 6379
+      username: ${REDIS_USER:presence}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+server:
+  port: 8088
+securechat:
+  security:
+    public-paths:
+      - /v3/api-docs/**
+  presence:
+    device-ttl: 45s
+    sweep-interval: 5s

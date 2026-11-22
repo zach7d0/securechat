@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:securechat:user.status.changed.v1.json",
+  "type": "object",
+  "required": [
+    "userId",
+    "status",
+    "at"
+  ],
+  "properties": {
+    "userId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "status": {
+      "enum": [
+        "ACTIVE",
+        "SUSPENDED"
+      ]
+    },
+    "at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}

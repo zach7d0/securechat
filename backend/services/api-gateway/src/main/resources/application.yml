@@ -1,0 +1,94 @@
+spring:
+  application:
+    name: api-gateway
+  threads:
+    virtual:
+      enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: 6379
+      username: ${REDIS_USER:apigw}
+      password: ${REDIS_PASSWORD:}
+      timeout: 1s
+  cloud:
+    gateway:
+      server:
+        webflux:
+          default-filters:
+            - RemoveRequestHeader=X-Internal-Token
+            - name: RequestSize
+              args:
+                maxSize: 300KB
+            - SecureHeaders
+          httpclient:
+            connect-timeout: 3000
+            response-timeout: 15s
+          routes:
+            - id: auth-public
+              uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+              predicates: [ "Path=/api/v1/auth/register,/api/v1/auth/login,/api/v1/auth/refresh,/api/v1/auth/logout" ]
+              filters:
+                - name: RequestRateLimiter
+                  args: { key-resolver: "#{@ipKeyResolver}", redis-rate-limiter.replenishRate: 2, redis-rate-limiter.burstCapacity: 10, redis-rate-limiter.requestedTokens: 1 }
+            - id: auth
+              uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+              predicates: [ "Path=/api/v1/auth/**" ]
+              filters: &userLimit
+                - name: RequestRateLimiter
+                  args: { key-resolver: "#{@userKeyResolver}", redis-rate-limiter.replenishRate: 30, redis-rate-limiter.burstCapacity: 120, redis-rate-limiter.requestedTokens: 1 }
+            - id: users
+              uri: ${USER_SERVICE_URL:http://user-service:8082}
+              predicates: [ "Path=/api/v1/users/**,/api/v1/users,/api/v1/contacts/**,/api/v1/contacts,/api/v1/devices/**,/api/v1/devices" ]
+              filters: *userLimit
+            - id: keys
+              uri: ${KEY_SERVICE_URL:http://key-service:8083}
+              predicates: [ "Path=/api/v1/keys/**" ]
+              filters: *userLimit
+            - id: messages
+              uri: ${MESSAGE_SERVICE_URL:http://message-service:8085}
+              predicates: [ "Path=/api/v1/conversations/*/messages,/api/v1/conversations/*/messages/*" ]
+              filters: *userLimit
+            - id: conversations
+              uri: ${CONVERSATION_SERVICE_URL:http://conversation-service:8084}
+              predicates: [ "Path=/api/v1/conversations/**,/api/v1/conversations,/api/v1/groups/**,/api/v1/groups" ]
+              filters: *userLimit
+            - id: receipts
+              uri: ${DELIVERY_SERVICE_URL:http://delivery-service:8087}
+              predicates: [ "Path=/api/v1/messages/*/receipts" ]
+              filters: *userLimit
+            - id: presence
+              uri: ${PRESENCE_SERVICE_URL:http://presence-service:8088}
+              predicates: [ "Path=/api/v1/presence" ]
+              filters: *userLimit
+            - id: admin
+              uri: ${ADMIN_SERVICE_URL:http://admin-service:8092}
+              predicates: [ "Path=/api/admin/**" ]
+              filters:
+                - name: RequestRateLimiter
+                  args: { key-resolver: "#{@ipKeyResolver}", redis-rate-limiter.replenishRate: 10, redis-rate-limiter.burstCapacity: 40, redis-rate-limiter.requestedTokens: 1 }
+server:
+  port: 8080
+  shutdown: graceful
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:9080}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: api-gateway
+logging:
+  structured:
+    format:
+      console: ${LOG_FORMAT:ecs}
+securechat:
+  jwks-uri: ${AUTH_JWKS_URI:http://auth-service:8081/.well-known/jwks.json}
+  issuer: securechat-auth
+  audience: securechat

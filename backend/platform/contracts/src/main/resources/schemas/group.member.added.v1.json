@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:securechat:group.member.added.v1.json",
+  "type": "object",
+  "required": [
+    "conversationId",
+    "userIds",
+    "memberUserIds",
+    "membershipVersion",
+    "epoch",
+    "at"
+  ],
+  "properties": {
+    "conversationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "userIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "memberUserIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "membershipVersion": {
+      "type": "integer"
+    },
+    "epoch": {
+      "type": "integer"
+    },
+    "at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "actorUserId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    }
+  },
+  "additionalProperties": true
+}

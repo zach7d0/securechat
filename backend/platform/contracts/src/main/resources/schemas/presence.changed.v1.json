@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:securechat:presence.changed.v1.json",
+  "type": "object",
+  "required": [
+    "userId",
+    "online",
+    "activeDevices",
+    "at"
+  ],
+  "properties": {
+    "userId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "online": {
+      "type": "boolean"
+    },
+    "activeDevices": {
+      "type": "integer"
+    },
+    "at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "lastSeen": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}

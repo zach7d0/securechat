@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:securechat:message.read.v1.json",
+  "type": "object",
+  "required": [
+    "messageId",
+    "conversationId",
+    "senderUserId",
+    "recipientUserId",
+    "recipientDeviceId",
+    "status",
+    "at"
+  ],
+  "properties": {
+    "messageId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "conversationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "senderUserId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "recipientUserId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "recipientDeviceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DELIVERED",
+        "READ"
+      ]
+    },
+    "at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}

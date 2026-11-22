@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:securechat:message.accepted.v1.json",
+  "type": "object",
+  "required": [
+    "messageId",
+    "conversationId",
+    "conversationType",
+    "senderUserId",
+    "senderDeviceId",
+    "clientMessageId",
+    "protocol",
+    "messageType",
+    "membershipVersion",
+    "createdAt",
+    "receivedAt",
+    "persistedAt"
+  ],
+  "properties": {
+    "messageId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "conversationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "conversationType": {
+      "enum": [
+        "DIRECT",
+        "GROUP"
+      ]
+    },
+    "senderUserId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "senderDeviceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "clientMessageId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "protocol": {
+      "enum": [
+        "SIGNAL",
+        "MLS"
+      ]
+    },
+    "messageType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "membershipVersion": {
+      "type": "integer"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "receivedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "persistedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "epoch": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "envelopes": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "required": [
+          "deviceId",
+          "signalType",
+          "ciphertext"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signalType": {
+            "type": "integer",
+            "enum": [
+              1,
+              3
+            ]
+          },
+          "ciphertext": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "ciphertext": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

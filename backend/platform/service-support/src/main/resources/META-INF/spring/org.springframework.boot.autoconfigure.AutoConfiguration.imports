@@ -1,0 +1,4 @@
+com.securechat.support.web.WebSupportConfiguration
+com.securechat.support.security.ResourceServerSecurityConfiguration
+com.securechat.support.kafka.KafkaSupportConfiguration
+com.securechat.support.outbox.OutboxConfiguration

@@ -1,0 +1,36 @@
+# Secrets — never commit
+.env
+secrets/
+*.pem
+*.key
+
+# Build output
+target/
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Runtime
+backups/
+*.log
+# Test run outputs (each run writes fresh results here; not published)
+tests/system/evidence/
+tests/failure/evidence/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+.~lock.*
+prompts/
+.cassandraWorkbench.jsonc
+docker-compose.override.yml
+
+# Local-only working notes (kept on disk, not published)
+docs/implementation/
+.github/modernize/
+deploy/ec2/
+.cassandraWorkbench/
+CREDENTIALS.local.md

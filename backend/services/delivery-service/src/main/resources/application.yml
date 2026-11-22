@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: delivery-service
+  cassandra:
+    contact-points: ${CASSANDRA_CONTACT_POINTS:cassandra:9042}
+    local-datacenter: ${CASSANDRA_DC:dc1}
+    keyspace-name: ${CASSANDRA_KEYSPACE:securechat_delivery}
+    username: ${CASSANDRA_USER:delivery_svc}
+    password: ${CASSANDRA_PASSWORD:}
+    request:
+      timeout: 5s
+      consistency: local_quorum
+      serial-consistency: local_serial
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: 6379
+      username: ${REDIS_USER:delivery}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+  kafka:
+    consumer:
+      group-id: delivery-service
+      max-poll-records: 100
+    listener:
+      concurrency: 3
+server:
+  port: 8087
+securechat:
+  security:
+    public-paths:
+      - /v3/api-docs/**
+  delivery:
+    shards: 16
+    expiry: 14d
+    sweep-interval: 10s
+    sweeper-lease: 30s
+    retry-base: 5s
+    retry-max: 5m
+    replay-limit: 500

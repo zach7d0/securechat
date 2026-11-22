@@ -1,0 +1,55 @@
+# Starter alert rules (MVP). Labels are bounded: no message/user/device ids.
+groups:
+  - name: securechat
+    rules:
+      - alert: ServiceDown
+        expr: up{job="securechat"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "{{ $labels.instance }} is not scrapeable" }
+      - alert: OutboxBacklogOld
+        expr: max(outbox_oldest_pending_age_seconds) > 60
+        for: 2m
+        labels: { severity: warning }
+        annotations: { summary: "Oldest unpublished outbox event is {{ $value }}s old (Kafka unreachable?)" }
+      - alert: OutboxBacklogCritical
+        expr: max(outbox_oldest_pending_age_seconds) > 300
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "Outbox events unpublished for more than 5 minutes" }
+      - alert: OutboxQuarantined
+        expr: max(outbox_quarantined) > 0
+        labels: { severity: critical }
+        annotations: { summary: "Outbox events quarantined (message row missing) — see docs/OUTBOX_RUNBOOK.md" }
+      - alert: OutboxPublishFailures
+        expr: sum(rate(outbox_publish_total{result="failure"}[5m])) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "Outbox publishing is failing" }
+      - alert: OutboxStuck
+        expr: max(outbox_stuck) > 0
+        labels: { severity: warning }
+        annotations: { summary: "PostgreSQL outbox rows exceeded the retry threshold" }
+      - alert: DeliveryBacklogOld
+        expr: max(delivery_oldest_pending_age_seconds) > 86400
+        for: 10m
+        labels: { severity: info }
+        annotations: { summary: "Pending deliveries older than 1 day (offline devices)" }
+      - alert: ConsumerDeadLetters
+        expr: sum(increase(kafka_consumer_dead_lettered_total[10m])) > 0
+        labels: { severity: critical }
+        annotations: { summary: "Kafka records were dead-lettered (topic {{ $labels.topic }})" }
+      - alert: KafkaConsumerLag
+        expr: max by (application) (kafka_consumer_fetch_manager_records_lag_max) > 1000
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "{{ $labels.application }} consumer lag {{ $value }}" }
+      - alert: HighServerErrorRate
+        expr: sum by (application) (rate(http_server_requests_seconds_count{status=~"5.."}[5m])) / sum by (application) (rate(http_server_requests_seconds_count[5m])) > 0.05
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "{{ $labels.application }} 5xx ratio above 5%" }
+      - alert: MessagePersistFailures
+        expr: sum(increase(message_persist_failures_total[5m])) > 0
+        labels: { severity: critical }
+        annotations: { summary: "Message Service cannot persist messages (Cassandra)" }

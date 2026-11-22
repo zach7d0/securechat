@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: notification-service
+  kafka:
+    consumer:
+      group-id: notification-service
+server:
+  port: 8090
+securechat:
+  security:
+    public-paths:
+      - /v3/api-docs/**
+  notification:
+    provider: ${PUSH_PROVIDER:log}
+    min-interval-per-device: 30s
+    dedupe-window: 10m

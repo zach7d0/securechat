@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.0.9</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.securechat</groupId>
+  <artifactId>securechat-backend</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <name>SecureChat Backend (reactor)</name>
+  <description>Independent Spring Boot microservices. Backend never sees plaintext or private keys.</description>
+
+  <modules>
+    <module>platform/contracts</module>
+    <module>platform/service-support</module>
+    <module>platform/test-support</module>
+    <!-- services are added phase by phase -->
+    <module>services/auth-service</module>
+    <module>services/user-service</module>
+    <module>services/key-service</module>
+    <module>services/conversation-service</module>
+    <module>services/message-service</module>
+    <module>services/websocket-gateway</module>
+    <module>services/presence-service</module>
+    <module>services/fanout-service</module>
+    <module>services/delivery-service</module>
+    <module>services/notification-service</module>
+    <module>services/api-gateway</module>
+    <module>services/monitoring-service</module>
+    <module>services/admin-service</module>
+  </modules>
+
+  <properties>
+    <java.version>21</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <spring-cloud.version>2025.1.4</spring-cloud.version>
+    <springdoc.version>3.0.0</springdoc.version>
+    <bouncycastle.version>1.87</bouncycastle.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-dependencies</artifactId>
+        <version>${spring-cloud.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.securechat</groupId>
+        <artifactId>contracts</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.securechat</groupId>
+        <artifactId>service-support</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.securechat</groupId>
+        <artifactId>test-support</artifactId>
+        <version>${project.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcprov-jdk18on</artifactId>
+        <version>${bouncycastle.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springdoc</groupId>
+        <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+        <version>${springdoc.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <configuration>
+            <!-- Unit tests: *Test; integration tests (Testcontainers): *IT, run by failsafe on `verify`. -->
+            <includes><include>**/*Test.java</include></includes>
+            <trimStackTrace>false</trimStackTrace>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <configuration>
+            <includes><include>**/*IT.java</include></includes>
+            <trimStackTrace>false</trimStackTrace>
+          </configuration>
+          <executions>
+            <execution>
+              <goals><goal>integration-test</goal><goal>verify</goal></goals>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <configuration>
+            <parameters>true</parameters>
+            <compilerArgs><arg>-Xlint:all,-processing,-serial</arg></compilerArgs>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+</project>

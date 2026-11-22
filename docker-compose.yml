@@ -1,0 +1,518 @@
+# SecureChat — local / single-EC2 MVP stack.
+# Single node of every datastore: NOT highly available (see TERMS.md / SECURITY.md).
+# Only the edge nginx publishes ports; datastores sit on an internal-only network.
+name: securechat
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "20m", max-file: "5" }
+
+x-java: &java
+  restart: unless-stopped
+  networks: [data, app]
+  logging: *logging
+  deploy: { resources: { limits: { memory: 560m } } }
+  environment: &java-env
+    JAVA_TOOL_OPTIONS: ${JAVA_OPTS}
+    LOG_FORMAT: ecs
+    INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?run scripts/gen-secrets.sh}
+    KAFKA_BOOTSTRAP: kafka:9092
+    AUTH_JWKS_URI: http://auth-service:8081/.well-known/jwks.json
+    OTEL_TRACES_EXPORTER: none
+
+x-java-health: &java-health
+  interval: 10s
+  timeout: 5s
+  retries: 30
+  start_period: 60s
+
+x-after-pg: &after-pg
+  postgres: { condition: service_healthy }
+  kafka-init: { condition: service_completed_successfully }
+
+x-after-cassandra: &after-cassandra
+  cassandra-init: { condition: service_completed_successfully }
+  kafka-init: { condition: service_completed_successfully }
+
+x-after-redis: &after-redis
+  redis: { condition: service_healthy }
+  kafka-init: { condition: service_completed_successfully }
+
+networks:
+  data:      # datastores + services; no external connectivity
+    internal: true
+  app:       # service-to-service traffic + edge
+  edge:      # public ingress (nginx)
+
+secrets:
+  auth_jwt_key:
+    file: ./secrets/auth-jwt-private.pem
+  admin_jwt_key:
+    file: ./secrets/admin-jwt-private.pem
+
+volumes:
+  pg-data:
+  cassandra-data:
+  redis-data:
+  kafka-data:
+  prometheus-data:
+  grafana-data:
+  pgadmin-data:
+
+services:
+  # ------------------------------------------------------------------ infrastructure
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/gen-secrets.sh}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      USER_DB_PASSWORD: ${USER_DB_PASSWORD}
+      KEY_DB_PASSWORD: ${KEY_DB_PASSWORD}
+      CONVERSATION_DB_PASSWORD: ${CONVERSATION_DB_PASSWORD}
+      MONITORING_DB_PASSWORD: ${MONITORING_DB_PASSWORD}
+      ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD}
+    command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=128MB", "-c", "password_encryption=scram-sha-256"]
+    volumes:
+      - pg-data:/var/lib/postgresql
+      - ./infra/postgres/01-init-databases.sh:/docker-entrypoint-initdb.d/01-init-databases.sh:ro
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres && psql -U postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='admin_db'\" | grep -q 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    deploy: { resources: { limits: { memory: 512m } } }
+    logging: *logging
+
+  cassandra:
+    image: cassandra:5.0.9
+    restart: unless-stopped
+    entrypoint: ["/securechat/entrypoint.sh"]
+    command: ["cassandra", "-f"]
+    environment:
+      CASSANDRA_CLUSTER_NAME: securechat
+      CASSANDRA_DC: dc1
+      CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+      MAX_HEAP_SIZE: 768M
+      HEAP_NEWSIZE: 128M
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+      - ./infra/cassandra/entrypoint.sh:/securechat/entrypoint.sh:ro
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status 2>/dev/null | grep -q '^UN' && bash -c '</dev/tcp/127.0.0.1/9042'"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+    deploy: { resources: { limits: { memory: 1536m } } }
+    logging: *logging
+
+  cassandra-init:
+    image: cassandra:5.0.9
+    restart: "no"
+    entrypoint: ["/bin/bash", "/securechat/init.sh"]
+    environment:
+      CASSANDRA_ADMIN_PASSWORD: ${CASSANDRA_ADMIN_PASSWORD}
+      MESSAGE_CASSANDRA_PASSWORD: ${MESSAGE_CASSANDRA_PASSWORD}
+      DELIVERY_CASSANDRA_PASSWORD: ${DELIVERY_CASSANDRA_PASSWORD}
+    volumes:
+      - ./infra/cassandra/init.sh:/securechat/init.sh:ro
+    networks: [data]
+    depends_on:
+      cassandra: { condition: service_healthy }
+    logging: *logging
+
+  redis:
+    image: redis:8.10.1-alpine
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/securechat/entrypoint.sh"]
+    environment:
+      REDIS_ADMIN_PASSWORD: ${REDIS_ADMIN_PASSWORD}
+      REDIS_PRESENCE_PASSWORD: ${REDIS_PRESENCE_PASSWORD}
+      REDIS_WSGATEWAY_PASSWORD: ${REDIS_WSGATEWAY_PASSWORD}
+      REDIS_FANOUT_PASSWORD: ${REDIS_FANOUT_PASSWORD}
+      REDIS_DELIVERY_PASSWORD: ${REDIS_DELIVERY_PASSWORD}
+      REDIS_APIGW_PASSWORD: ${REDIS_APIGW_PASSWORD}
+    volumes:
+      - redis-data:/data
+      - ./infra/redis/entrypoint.sh:/securechat/entrypoint.sh:ro
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning --user admin --pass \"$$REDIS_ADMIN_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy: { resources: { limits: { memory: 320m } } }
+    logging: *logging
+
+  kafka:
+    image: apache/kafka:4.3.1
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+      CLUSTER_ID: securechat-kraft-cluster-01
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 20s
+    deploy: { resources: { limits: { memory: 1g } } }
+    logging: *logging
+
+  kafka-init:
+    image: apache/kafka:4.3.1
+    restart: "no"
+    entrypoint: ["/bin/bash", "/securechat/create-topics.sh"]
+    volumes:
+      - ./infra/kafka/create-topics.sh:/securechat/create-topics.sh:ro
+    networks: [data]
+    depends_on:
+      kafka: { condition: service_healthy }
+    logging: *logging
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    profiles: [tools]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: securechat
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "false"
+    ports: ["127.0.0.1:${KAFKA_UI_PORT:-8190}:8080"]
+    networks: [data, app]
+    depends_on:
+      kafka: { condition: service_healthy }
+    deploy: { resources: { limits: { memory: 512m } } }
+    logging: *logging
+
+  pgadmin:
+    image: dpage/pgadmin4:9.17
+    profiles: [tools]
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-}
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      PGADMIN_CONFIG_UPGRADE_CHECK_ENABLED: "False"
+      PGADMIN_DISABLE_POSTFIX: "true"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./infra/pgadmin/servers.json:/pgadmin4/servers.json:ro   # pre-registers the postgres server
+    ports: ["127.0.0.1:${PGADMIN_PORT:-8192}:80"]
+    networks: [data, app]
+    depends_on:
+      postgres: { condition: service_healthy }
+    deploy: { resources: { limits: { memory: 384m } } }
+    logging: *logging
+
+  # ------------------------------------------------------------------ application services
+
+  auth-service:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: auth-service } }
+    image: securechat/auth-service:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9081"
+      DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      AUTH_JWT_PRIVATE_KEY_FILE: /run/secrets/auth_jwt_key
+    depends_on:
+      <<: *after-pg
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9081/actuator/health/readiness | grep -q UP"]
+    secrets: [auth_jwt_key]
+
+  user-service:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: user-service } }
+    image: securechat/user-service:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9082"
+      DB_PASSWORD: ${USER_DB_PASSWORD}
+    depends_on:
+      <<: *after-pg
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9082/actuator/health/readiness | grep -q UP"]
+
+  key-service:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: key-service } }
+    image: securechat/key-service:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9083"
+      DB_PASSWORD: ${KEY_DB_PASSWORD}
+    depends_on:
+      <<: *after-pg
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9083/actuator/health/readiness | grep -q UP"]
+
+  conversation-service:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: conversation-service } }
+    image: securechat/conversation-service:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9084"
+      DB_PASSWORD: ${CONVERSATION_DB_PASSWORD}
+    depends_on:
+      <<: *after-pg
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9084/actuator/health/readiness | grep -q UP"]
+
+  message-service:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: message-service } }
+    image: securechat/message-service:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9085"
+      CASSANDRA_PASSWORD: ${MESSAGE_CASSANDRA_PASSWORD}
+    depends_on:
+      <<: *after-cassandra
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9085/actuator/health/readiness | grep -q UP"]
+
+  fanout-service:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: fanout-service } }
+    image: securechat/fanout-service:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9086"
+      REDIS_PASSWORD: ${REDIS_FANOUT_PASSWORD}
+    depends_on:
+      <<: *after-redis
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9086/actuator/health/readiness | grep -q UP"]
+
+  delivery-service:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: delivery-service } }
+    image: securechat/delivery-service:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9087"
+      CASSANDRA_PASSWORD: ${DELIVERY_CASSANDRA_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_DELIVERY_PASSWORD}
+    depends_on:
+      <<: *after-cassandra
+      redis: { condition: service_healthy }
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9087/actuator/health/readiness | grep -q UP"]
+
+  presence-service:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: presence-service } }
+    image: securechat/presence-service:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9088"
+      REDIS_PASSWORD: ${REDIS_PRESENCE_PASSWORD}
+    depends_on:
+      <<: *after-redis
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9088/actuator/health/readiness | grep -q UP"]
+
+  websocket-gateway:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: websocket-gateway } }
+    image: securechat/websocket-gateway:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9089"
+      REDIS_PASSWORD: ${REDIS_WSGATEWAY_PASSWORD}
+      GATEWAY_ID: ws-1
+      CHAT_ORIGIN: ${CHAT_ORIGIN}
+    depends_on:
+      <<: *after-redis
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9089/actuator/health/readiness | grep -q UP"]
+
+  websocket-gateway-2:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: websocket-gateway } }
+    image: securechat/websocket-gateway:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9089"
+      REDIS_PASSWORD: ${REDIS_WSGATEWAY_PASSWORD}
+      GATEWAY_ID: ws-2
+      CHAT_ORIGIN: ${CHAT_ORIGIN}
+    depends_on:
+      <<: *after-redis
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9089/actuator/health/readiness | grep -q UP"]
+
+  monitoring-service:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: monitoring-service } }
+    image: securechat/monitoring-service:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9091"
+      DB_PASSWORD: ${MONITORING_DB_PASSWORD}
+    depends_on:
+      <<: *after-pg
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9091/actuator/health/readiness | grep -q UP"]
+
+  admin-service:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: admin-service } }
+    image: securechat/admin-service:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9092"
+      DB_PASSWORD: ${ADMIN_DB_PASSWORD}
+      ADMIN_JWT_PRIVATE_KEY_FILE: /run/secrets/admin_jwt_key
+      ADMIN_MFA_ENCRYPTION_KEY: ${ADMIN_MFA_ENCRYPTION_KEY}
+      ADMIN_MFA_REQUIRED: ${ADMIN_MFA_REQUIRED}
+      ADMIN_BOOTSTRAP_USERNAME: ${ADMIN_BOOTSTRAP_USERNAME}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD}
+      PROMETHEUS_URL: http://prometheus:9090
+      PROMETHEUS_USER: ${PROMETHEUS_USER}
+      PROMETHEUS_PASSWORD: ${PROMETHEUS_PASSWORD}
+    secrets: [admin_jwt_key]
+    depends_on:
+      <<: *after-pg
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9092/actuator/health/readiness | grep -q UP"]
+
+  notification-service:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: notification-service } }
+    image: securechat/notification-service:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9090"
+    depends_on:
+      <<: *after-redis
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9090/actuator/health/readiness | grep -q UP"]
+
+  api-gateway:
+    <<: *java
+    build: { context: ./backend, args: { SERVICE: api-gateway } }
+    image: securechat/api-gateway:local
+    environment:
+      <<: *java-env
+      MANAGEMENT_SERVER_PORT: "9080"
+      REDIS_PASSWORD: ${REDIS_APIGW_PASSWORD}
+    depends_on:
+      <<: *after-redis
+    healthcheck:
+      <<: *java-health
+      test: ["CMD-SHELL", "curl -fsS localhost:9080/actuator/health/readiness | grep -q UP"]
+
+  # ------------------------------------------------------------------ observability (internal; dev ports on 127.0.0.1)
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d", "--web.enable-lifecycle",
+              "--web.config.file=/etc/prometheus/web.yml"]
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./secrets/prometheus-web.yml:/etc/prometheus/web.yml:ro   # basic auth (bcrypt), see scripts/gen-prometheus-auth.sh
+      - ./infra/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports: ["127.0.0.1:${PROMETHEUS_PORT:-8191}:9090"]
+    networks: [data, app]
+    deploy: { resources: { limits: { memory: 384m } } }
+    logging: *logging
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      PROMETHEUS_USER: ${PROMETHEUS_USER:?run scripts/gen-prometheus-auth.sh}
+      PROMETHEUS_PASSWORD: ${PROMETHEUS_PASSWORD:?run scripts/gen-prometheus-auth.sh}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports: ["127.0.0.1:${GRAFANA_PORT:-8130}:3000"]
+    networks: [app]
+    depends_on: [prometheus]
+    deploy: { resources: { limits: { memory: 256m } } }
+    logging: *logging
+
+  # ------------------------------------------------------------------ frontends (static, behind the edge)
+  admin-portal:
+    build: { context: ./admin-portal }
+    image: securechat/admin-portal:local
+    restart: unless-stopped
+    networks: [app]
+    deploy: { resources: { limits: { memory: 64m } } }
+    logging: *logging
+
+  frontend:
+    build: { context: ./frontend }
+    image: securechat/frontend:local
+    restart: unless-stopped
+    environment:
+      SECURECHAT_ONBOARDING: ${ONBOARDING_ENABLED:-true}   # welcome tour for new users (true/false)
+    networks: [app]
+    deploy: { resources: { limits: { memory: 64m } } }
+    logging: *logging
+
+  # ------------------------------------------------------------------ edge (only published container)
+  edge:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./infra/nginx/edge.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${CHAT_HTTP_PORT:-8100}:8100"
+      - "${ADMIN_HTTP_PORT:-8101}:8101"
+    networks: [app, edge]
+    depends_on:
+      api-gateway: { condition: service_healthy }
+      websocket-gateway: { condition: service_healthy }
+      websocket-gateway-2: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8100/api/v1/auth/x >/dev/null 2>&1; [ $$? -le 8 ]"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy: { resources: { limits: { memory: 128m } } }
+    logging: *logging

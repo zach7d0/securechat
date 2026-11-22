@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: monitoring-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/monitoring_db}
+    username: ${DB_USER:monitoring_svc}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 3000
+  kafka:
+    consumer:
+      group-id: monitoring-projection
+      max-poll-records: 200
+server:
+  port: 8091
+securechat:
+  outbox:
+    enabled: true
+    publisher-enabled: false
+  security:
+    public-paths:
+      - /v3/api-docs/**
+  monitoring:
+    retention: 30d

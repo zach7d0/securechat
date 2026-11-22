@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: key-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/key_db}
+    username: ${DB_USER:key_svc}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 16
+      connection-timeout: 3000
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  kafka:
+    consumer:
+      group-id: key-service
+server:
+  port: 8083
+securechat:
+  outbox:
+    enabled: true
+  security:
+    public-paths:
+      - /v3/api-docs/**
+  keys:
+    max-available-prekeys: 1000
+    max-available-key-packages: 200
+    prekey-low-threshold: 20
+    key-package-low-threshold: 5
+    claims-per-minute: 120

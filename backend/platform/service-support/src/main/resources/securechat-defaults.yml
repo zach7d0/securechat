@@ -1,0 +1,90 @@
+# Defaults shared by every SecureChat service. Loaded at LOWEST precedence by
+# DefaultsEnvironmentPostProcessor: anything a service configures overrides these.
+server:
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  threads:
+    virtual:
+      enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      acks: all
+      retries: 10
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+        linger.ms: 2
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        max.poll.interval.ms: 300000
+    listener:
+      ack-mode: record
+      observation-enabled: true
+    template:
+      observation-enabled: true
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:0}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+logging:
+  structured:
+    format:
+      console: ${LOG_FORMAT:ecs}
+  level:
+    root: INFO
+    org.apache.kafka: WARN
+    com.datastax.oss.driver: WARN
+securechat:
+  security:
+    jwks-uri: ${AUTH_JWKS_URI:http://auth-service:8081/.well-known/jwks.json}
+    internal-token: ${INTERNAL_SERVICE_TOKEN:}
+  internal:
+    auth-url: ${AUTH_SERVICE_URL:http://auth-service:8081}
+    user-url: ${USER_SERVICE_URL:http://user-service:8082}
+    key-url: ${KEY_SERVICE_URL:http://key-service:8083}
+    conversation-url: ${CONVERSATION_SERVICE_URL:http://conversation-service:8084}
+    message-url: ${MESSAGE_SERVICE_URL:http://message-service:8085}
+    delivery-url: ${DELIVERY_SERVICE_URL:http://delivery-service:8087}
+    presence-url: ${PRESENCE_SERVICE_URL:http://presence-service:8088}
+    monitoring-url: ${MONITORING_SERVICE_URL:http://monitoring-service:8091}
+---
+management:
+  endpoint:
+    health:
+      validate-group-membership: false
+      group:
+        readiness:
+          include: readinessState,db,cassandra,redis
+---
+# W3C trace context across HTTP and Kafka; trace/span ids appear in every structured log line.
+# No span exporter is configured in the MVP (telemetry can never block message processing);
+# set management.otlp.tracing.endpoint + add an exporter to ship spans to Jaeger/Tempo.
+management:
+  tracing:
+    sampling:
+      probability: 1.0

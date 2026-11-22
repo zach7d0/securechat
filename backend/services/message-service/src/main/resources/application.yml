@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: message-service
+  cassandra:
+    contact-points: ${CASSANDRA_CONTACT_POINTS:cassandra:9042}
+    local-datacenter: ${CASSANDRA_DC:dc1}
+    keyspace-name: ${CASSANDRA_KEYSPACE:securechat_message}
+    username: ${CASSANDRA_USER:message_svc}
+    password: ${CASSANDRA_PASSWORD:}
+    request:
+      timeout: 5s
+      consistency: local_quorum
+      serial-consistency: local_serial
+    connection:
+      connect-timeout: 5s
+      init-query-timeout: 10s
+  servlet:
+    multipart:
+      enabled: false
+server:
+  port: 8085
+  tomcat:
+    max-http-form-post-size: 262144
+    max-swallow-size: 262144
+securechat:
+  security:
+    public-paths:
+      - /v3/api-docs/**
+  messages:
+    outbox-shards: 8
+    outbox-batch-size: 200
+    outbox-poll-interval: 300ms
+    outbox-lease: 30s
+    outbox-quarantine-grace: 2m
+    outbox-stuck-after: 10
+    max-ciphertext-bytes: 65536
+    max-envelopes: 64
+    history-page-max: 100
+    history-lookback-days: 400
