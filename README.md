@@ -39,6 +39,11 @@ Together, let's make secure communication more accessible, transparent, and unde
 
 ### How a message travels
 
+![How a message travels: encrypt, submit, persist, publish, fan out, deliver](screenshots/4-1-message-travel.png)
+
+<details>
+<summary>Same flow as text</summary>
+
 ```text
 Alice's browser                     servers (see ciphertext only)                    Bob's devices
 ───────────────                     ─────────────────────────────                    ─────────────
@@ -48,6 +53,8 @@ encrypt with Signal / MLS  ──►  Message Service: store ciphertext + outbox
                                 keep for offline ones, replay on reconnect          ──►  decrypt on each device
                                                                                          ACK → delivered / read
 ```
+
+</details>
 
 ### What's included
 
@@ -209,7 +216,11 @@ Day to day: `scripts/start.sh` · `scripts/stop.sh` (keeps data) · `scripts/hea
 
 ## Architecture
 
-![SecureChat high-level architecture](screenshots/4-1-architecture-high-level.png)
+![SecureChat architecture in layers: clients, edge, gateways, services, data](screenshots/4-2-architecure-in-layers.png)
+
+**Detailed view** — every service and the data it uses:
+
+![SecureChat high-level architecture](screenshots/4-3-architecture-high-level.png)
 
 Browsers talk to one **nginx edge**: REST calls go through the **API Gateway** to the services, real-time traffic
 goes to the **WebSocket gateways**. Messages are persisted as ciphertext in **Cassandra** with an outbox, published to
